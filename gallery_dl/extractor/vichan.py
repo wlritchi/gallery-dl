@@ -38,7 +38,7 @@ class VichanThreadExtractor(VichanExtractor):
     subcategory = "thread"
     directory_fmt = ("{category}", "{board}", "{thread} {title}")
     filename_fmt = "{time}{num:?-//} {filename}.{extension}"
-    archive_fmt = "{board}_{thread}_{tim}"
+    archive_fmt = "{board}_{thread}_{num}_{tim}"
     pattern = BASE_PATTERN + r"/([^/?#]+)/res/(\d+)"
     test = (
         ("https://8kun.top/test/res/65248.html", {
