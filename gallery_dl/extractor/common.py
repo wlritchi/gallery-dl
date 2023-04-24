@@ -366,8 +366,9 @@ class Extractor():
         """Store the session's cookiejar in a cookies.txt file"""
         if self._cookiefile and self.config("cookies-update", True):
             try:
-                with open(self._cookiefile, "w") as fp:
+                with open(self._cookiefile + ".tmp", "w") as fp:
                     util.cookiestxt_store(fp, self._cookiejar)
+                os.replace(self._cookiefile + ".tmp", self._cookiefile)
             except OSError as exc:
                 self.log.warning("cookies: %s", exc)
 
