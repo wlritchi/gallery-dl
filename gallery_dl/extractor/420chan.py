@@ -27,6 +27,7 @@ class _420chanThreadExtractor(Extractor):
     def __init__(self, match):
         Extractor.__init__(self, match)
         self.board, self.thread = match.groups()
+        self.text_posts = self.config("text-posts", False)
 
     def items(self):
         url = "https://api.420chan.org/{}/res/{}.json".format(
@@ -39,10 +40,11 @@ class _420chanThreadExtractor(Extractor):
             "title" : posts[0].get("sub") or posts[0]["com"][:50],
         }
 
-        yield Message.Directory, data
         for post in posts:
+            post.update(data)
+            if "filename" in post or self.text_posts:
+                yield Message.Directory, post
             if "filename" in post:
-                post.update(data)
                 post["extension"] = post["ext"][1:]
                 url = "https://boards.420chan.org/{}/src/{}{}".format(
                     post["board"], post["filename"], post["ext"])
