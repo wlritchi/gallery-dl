@@ -63,6 +63,7 @@ CATEGORY_MAP = {
     "imgth"          : "imgth",
     "imgur"          : "imgur",
     "joyreactor"     : "JoyReactor",
+    "itchio"         : "itch.io",
     "kabeuchi"       : "かべうち",
     "kemonoparty"    : "Kemono",
     "lineblog"       : "LINE BLOG",
@@ -116,7 +117,6 @@ CATEGORY_MAP = {
     "thatpervert"    : "ThatPervert",
     "thebarchive"    : "The /b/ Archive",
     "thecollection"  : "The /co/llection",
-    "tokyochronos"   : "TokyoChronos",
     "tumblrgallery"  : "TumblrGallery",
     "vanillarock"    : "もえぴりあ",
     "vidyart"        : "/v/idyart",
@@ -183,6 +183,9 @@ SUBCATEGORY_MAP = {
     "hentaifoundry": {
         "story": "",
     },
+    "imgur": {
+        "favorite-folder": "Favorites Folders",
+    },
     "instagram": {
         "posts": "",
         "saved": "Saved Posts",
@@ -228,6 +231,9 @@ SUBCATEGORY_MAP = {
     },
     "smugmug": {
         "path": "Images from Users and Folders",
+    },
+    "tumblr": {
+        "day": "Days",
     },
     "twitter": {
         "media": "Media Timelines",
