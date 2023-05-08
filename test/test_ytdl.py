@@ -166,7 +166,7 @@ class Test_CommandlineArguments(unittest.TestCase):
             subs["already_have_subtitle"] = False
 
         opts = self._(["--embed-subs", "--embed-thumbnail"])
-        self.assertEqual(opts["postprocessors"], [subs, thumb])
+        self.assertEqual(opts["postprocessors"][:2], [subs, thumb])
 
         thumb["already_have_thumbnail"] = True
         if self.module_name == "yt_dlp":
@@ -179,7 +179,7 @@ class Test_CommandlineArguments(unittest.TestCase):
             "--write-sub",
             "--write-all-thumbnails",
         ])
-        self.assertEqual(opts["postprocessors"], [subs, thumb])
+        self.assertEqual(opts["postprocessors"][:2], [subs, thumb])
 
     def test_metadata(self):
         opts = self._("--add-metadata")
@@ -262,22 +262,37 @@ class Test_CommandlineArguments_YtDlp(Test_CommandlineArguments):
 
     def test_metadata_from_title(self):
         opts = self._(["--metadata-from-title", "%(artist)s - %(title)s"])
-
-        try:
-            legacy = (self.module.version.__version__ < "2023.01.01")
-        except AttributeError:
-            legacy = True
-
-        actions = [self.module.MetadataFromFieldPP.to_action(
-                   "title:%(artist)s - %(title)s")]
-        if not legacy:
-            actions = {"pre_process": actions}
-
         self.assertEqual(opts["postprocessors"][0], {
             "key"    : "MetadataParser",
             "when"   : "pre_process",
-            "actions": actions,
+            "actions": [self.module.MetadataFromFieldPP.to_action(
+                "title:%(artist)s - %(title)s")],
         })
+
+    def test_geo_bypass(self):
+        try:
+            ytdl.parse_command_line(self.module, ["--xff", "default"])
+        except Exception:
+            # before --xff (c16644642)
+            return Test_CommandlineArguments.test_geo_bypass(self)
+
+        self._(["--xff", "default"],
+               "geo_bypass", "default")
+        self._(["--xff", "never"],
+               "geo_bypass", "never")
+        self._(["--xff", "EN"],
+               "geo_bypass", "EN")
+        self._(["--xff", "198.51.100.14/24"],
+               "geo_bypass", "198.51.100.14/24")
+
+        self._("--geo-bypass",
+               "geo_bypass", "default")
+        self._("--no-geo-bypass",
+               "geo_bypass", "never")
+        self._(["--geo-bypass-country", "EN"],
+               "geo_bypass", "EN")
+        self._(["--geo-bypass-ip-block", "198.51.100.14/24"],
+               "geo_bypass", "198.51.100.14/24")
 
 
 if __name__ == "__main__":

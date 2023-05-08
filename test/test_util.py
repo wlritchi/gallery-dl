@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright 2015-2022 Mike Fährmann
+# Copyright 2015-2023 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -15,6 +15,7 @@ import io
 import random
 import string
 import datetime
+import tempfile
 import itertools
 import http.cookiejar
 
@@ -394,6 +395,46 @@ class TestOther(unittest.TestCase):
     def test_noop(self):
         self.assertEqual(util.noop(), None)
 
+    def test_md5(self):
+        self.assertEqual(util.md5(b""),
+                         "d41d8cd98f00b204e9800998ecf8427e")
+        self.assertEqual(util.md5(b"hello"),
+                         "5d41402abc4b2a76b9719d911017c592")
+
+        self.assertEqual(util.md5(""),
+                         "d41d8cd98f00b204e9800998ecf8427e")
+        self.assertEqual(util.md5("hello"),
+                         "5d41402abc4b2a76b9719d911017c592")
+        self.assertEqual(util.md5("ワルド"),
+                         "051f29cd6c942cf110a0ccc5729871d2")
+
+        self.assertEqual(util.md5(0),
+                         "d41d8cd98f00b204e9800998ecf8427e")
+        self.assertEqual(util.md5(()),
+                         "d41d8cd98f00b204e9800998ecf8427e")
+        self.assertEqual(util.md5(None),
+                         "d41d8cd98f00b204e9800998ecf8427e")
+
+    def test_sha1(self):
+        self.assertEqual(util.sha1(b""),
+                         "da39a3ee5e6b4b0d3255bfef95601890afd80709")
+        self.assertEqual(util.sha1(b"hello"),
+                         "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d")
+
+        self.assertEqual(util.sha1(""),
+                         "da39a3ee5e6b4b0d3255bfef95601890afd80709")
+        self.assertEqual(util.sha1("hello"),
+                         "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d")
+        self.assertEqual(util.sha1("ワルド"),
+                         "0cbe319081aa0e9298448ec2bb16df8c494aa04e")
+
+        self.assertEqual(util.sha1(0),
+                         "da39a3ee5e6b4b0d3255bfef95601890afd80709")
+        self.assertEqual(util.sha1(()),
+                         "da39a3ee5e6b4b0d3255bfef95601890afd80709")
+        self.assertEqual(util.sha1(None),
+                         "da39a3ee5e6b4b0d3255bfef95601890afd80709")
+
     def test_compile_expression(self):
         expr = util.compile_expression("1 + 2 * 3")
         self.assertEqual(expr(), 7)
@@ -417,6 +458,56 @@ class TestOther(unittest.TestCase):
         expr = util.compile_expression("1 and abort()")
         with self.assertRaises(exception.StopExtraction):
             expr()
+
+    def test_import_file(self):
+        module = util.import_file("datetime")
+        self.assertIs(module, datetime)
+
+        with tempfile.TemporaryDirectory() as path:
+            file = path + "/module_test.py"
+            with open(file, "w") as fp:
+                fp.write("""
+import datetime
+key = "foobar"
+value = 123
+""")
+            module = util.import_file(file)
+
+        self.assertEqual(module.__name__, "module_test")
+        self.assertEqual(module.key, "foobar")
+        self.assertEqual(module.value, 123)
+        self.assertIs(module.datetime, datetime)
+
+    def test_custom_globals(self):
+        value = {"v": "foobar"}
+        result = "8843d7f92416211de9ebb963ff4ce28125932878"
+
+        expr = util.compile_expression("hash_sha1(v)")
+        self.assertEqual(expr(value), result)
+
+        expr = util.compile_expression("hs(v)", globals={"hs": util.sha1})
+        self.assertEqual(expr(value), result)
+
+        with tempfile.TemporaryDirectory() as path:
+            file = path + "/module_sha1.py"
+            with open(file, "w") as fp:
+                fp.write("""
+import hashlib
+def hash(value):
+    return hashlib.sha1(value.encode()).hexdigest()
+""")
+            module = util.import_file(file)
+
+        expr = util.compile_expression("hash(v)", globals=module.__dict__)
+        self.assertEqual(expr(value), result)
+
+        GLOBALS_ORIG = util.GLOBALS
+        try:
+            util.GLOBALS = module.__dict__
+            expr = util.compile_expression("hash(v)")
+        finally:
+            util.GLOBALS = GLOBALS_ORIG
+        self.assertEqual(expr(value), result)
 
     def test_build_duration_func(self, f=util.build_duration_func):
 

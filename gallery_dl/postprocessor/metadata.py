@@ -10,6 +10,7 @@
 
 from .common import PostProcessor
 from .. import util, formatter
+import json
 import sys
 import os
 
@@ -46,14 +47,12 @@ class MetadataPP(PostProcessor):
             ext = "txt"
         elif mode == "jsonl":
             self.write = self._write_json
-            self.indent = None
-            self.ascii = options.get("ascii", False)
+            self._json_encode = self._make_encoder(options).encode
             omode = "a"
             filename = "data.jsonl"
         else:
             self.write = self._write_json
-            self.indent = options.get("indent", 4)
-            self.ascii = options.get("ascii", False)
+            self._json_encode = self._make_encoder(options, 4).encode
             ext = "json"
 
         directory = options.get("directory")
@@ -88,6 +87,7 @@ class MetadataPP(PostProcessor):
         self.omode = options.get("open", omode)
         self.encoding = options.get("encoding", "utf-8")
         self.private = options.get("private", False)
+        self.skip = options.get("skip", False)
 
     def run(self, pathfmt):
         archive = self.archive
@@ -96,6 +96,9 @@ class MetadataPP(PostProcessor):
 
         directory = self._directory(pathfmt)
         path = directory + self._filename(pathfmt)
+
+        if self.skip and os.path.exists(path):
+            return
 
         try:
             with open(path, self.omode, encoding=self.encoding) as fp:
@@ -121,10 +124,8 @@ class MetadataPP(PostProcessor):
         for key, func in self.fields.items():
             obj = kwdict
             try:
-                while "[" in key:
-                    name, _, key = key.partition("[")
-                    obj = obj[name]
-                    key = key.rstrip("]")
+                if "[" in key:
+                    obj, key = _traverse(obj, key)
                 obj[key] = func(kwdict)
             except Exception:
                 pass
@@ -134,10 +135,8 @@ class MetadataPP(PostProcessor):
         for key in self.fields:
             obj = kwdict
             try:
-                while "[" in key:
-                    name, _, key = key.partition("[")
-                    obj = obj[name]
-                    key = key.rstrip("]")
+                if "[" in key:
+                    obj, key = _traverse(obj, key)
                 del obj[key]
             except Exception:
                 pass
@@ -185,13 +184,41 @@ class MetadataPP(PostProcessor):
             for taglist in taglists:
                 extend(taglist)
             tags.sort()
+        elif all(isinstance(e, dict) for e in tags):
+            taglists = tags
+            tags = []
+            extend = tags.extend
+            for tagdict in taglists:
+                extend([x for x in tagdict.values() if x is not None])
+            tags.sort()
 
         fp.write("\n".join(tags) + "\n")
 
     def _write_json(self, fp, kwdict):
         if not self.private:
             kwdict = util.filter_dict(kwdict)
-        util.dump_json(kwdict, fp, self.ascii, self.indent)
+        fp.write(self._json_encode(kwdict) + "\n")
+
+    @staticmethod
+    def _make_encoder(options, indent=None):
+        return json.JSONEncoder(
+            ensure_ascii=options.get("ascii", False),
+            sort_keys=options.get("sort", False),
+            separators=options.get("separators"),
+            indent=options.get("indent", indent),
+            check_circular=False, default=str,
+        )
+
+
+def _traverse(obj, key):
+    name, _, key = key.partition("[")
+    obj = obj[name]
+
+    while "[" in key:
+        name, _, key = key.partition("[")
+        obj = obj[name.strip("\"']")]
+
+    return obj, key.strip("\"']")
 
 
 __postprocessor__ = MetadataPP

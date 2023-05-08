@@ -18,12 +18,6 @@
     --user-agent UA             User-Agent request header
     --clear-cache MODULE        Delete cached login sessions, cookies, etc. for
                                 MODULE (ALL to delete everything)
-    --cookies FILE              File to load additional cookies from
-    --cookies-from-browser BROWSER[+KEYRING][:PROFILE][::CONTAINER]
-                                Name of the browser to load cookies from, with
-                                optional keyring name prefixed with '+', profile
-                                prefixed with ':', and container prefixed with
-                                '::' ('none' for no container)
 
 ## Output Options:
     -q, --quiet                 Activate quiet mode
@@ -72,14 +66,27 @@
     --no-check-certificate      Disable HTTPS certificate validation
 
 ## Configuration Options:
+    -o, --option KEY=VALUE      Additional options. Example: -o browser=firefox
     -c, --config FILE           Additional configuration files
-    -o, --option OPT            Additional '<key>=<value>' option values
-    --ignore-config             Do not read default configuration files
+    --config-yaml FILE          Additional configuration files in YAML format
+    --config-toml FILE          Additional configuration files in TOML format
+    --config-create             Create a basic configuration file
+    --config-ignore             Do not read default configuration files
 
 ## Authentication Options:
     -u, --username USER         Username to login with
     -p, --password PASS         Password belonging to the given username
     --netrc                     Enable .netrc authentication data
+
+## Cookie Options:
+    -C, --cookies FILE          File to load additional cookies from
+    --cookies-export FILE       Export session cookies to FILE
+    --cookies-from-browser BROWSER[/DOMAIN][+KEYRING][:PROFILE][::CONTAINER]
+                                Name of the browser to load cookies from, with
+                                optional domain prefixed with '/', keyring name
+                                prefixed with '+', profile prefixed with ':',
+                                and container prefixed with '::' ('none' for no
+                                container)
 
 ## Selection Options:
     --download-archive FILE     Record all downloaded or skipped files in FILE

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017-2022 Mike Fährmann
+# Copyright 2017-2023 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -14,6 +14,7 @@ import sys
 import json
 import time
 import random
+import hashlib
 import sqlite3
 import binascii
 import datetime
@@ -23,7 +24,7 @@ import subprocess
 import urllib.parse
 from http.cookiejar import Cookie
 from email.utils import mktime_tz, parsedate_tz
-from . import text, exception
+from . import text, version, exception
 
 
 def bencode(num, alphabet="0123456789"):
@@ -110,6 +111,24 @@ def false(_):
 
 def noop():
     """Does nothing"""
+
+
+def md5(s):
+    """Generate MD5 hexdigest of 's'"""
+    if not s:
+        s = b""
+    elif isinstance(s, str):
+        s = s.encode()
+    return hashlib.md5(s).hexdigest()
+
+
+def sha1(s):
+    """Generate SHA1 hexdigest of 's'"""
+    if not s:
+        s = b""
+    elif isinstance(s, str):
+        s = s.encode()
+    return hashlib.sha1(s).hexdigest()
 
 
 def generate_token(size=16):
@@ -202,6 +221,10 @@ def datetime_to_timestamp_string(dt):
         return str((dt - EPOCH) // SECOND)
     except Exception:
         return ""
+
+
+json_loads = json._default_decoder.decode
+json_dumps = json.JSONEncoder(default=str).encode
 
 
 def dump_json(obj, fp=sys.stdout, ensure_ascii=True, indent=4):
@@ -513,7 +536,7 @@ def parse_inputfile(file, log):
                 continue
 
             try:
-                value = json.loads(value.strip())
+                value = json_loads(value.strip())
             except ValueError as exc:
                 log.warning("input file: unable to parse '%s': %s", value, exc)
                 continue
@@ -579,6 +602,8 @@ EPOCH = datetime.datetime(1970, 1, 1)
 SECOND = datetime.timedelta(0, 1)
 WINDOWS = (os.name == "nt")
 SENTINEL = object()
+USERAGENT = "gallery-dl/" + version.__version__
+EXECUTABLE = getattr(sys, "frozen", False)
 SPECIAL_EXTRACTORS = {"oauth", "recursive", "test"}
 GLOBALS = {
     "contains" : contains,
@@ -588,13 +613,35 @@ GLOBALS = {
     "timedelta": datetime.timedelta,
     "abort"    : raises(exception.StopExtraction),
     "terminate": raises(exception.TerminateExtraction),
+    "restart"  : raises(exception.RestartExtraction),
+    "hash_sha1": sha1,
+    "hash_md5" : md5,
     "re"       : re,
 }
 
 
-def compile_expression(expr, name="<expr>", globals=GLOBALS):
+def compile_expression(expr, name="<expr>", globals=None):
     code_object = compile(expr, name, "eval")
-    return functools.partial(eval, code_object, globals)
+    return functools.partial(eval, code_object, globals or GLOBALS)
+
+
+def import_file(path):
+    """Import a Python module from a filesystem path"""
+    path, name = os.path.split(path)
+
+    name, sep, ext = name.rpartition(".")
+    if not sep:
+        name = ext
+
+    if path:
+        path = expand_path(path)
+        sys.path.insert(0, path)
+        try:
+            return __import__(name)
+        finally:
+            del sys.path[0]
+    else:
+        return __import__(name)
 
 
 def build_duration_func(duration, min=0.0):
@@ -733,7 +780,8 @@ class RangePredicate():
             self.lower = min(r.start for r in ranges)
             self.upper = max(r.stop for r in ranges) - 1
         else:
-            self.lower = self.upper = 0
+            self.lower = 0
+            self.upper = 0
 
     def __call__(self, _url, _kwdict):
         self.index = index = self.index + 1
@@ -831,7 +879,8 @@ class ExtendedUrl():
 
 class DownloadArchive():
 
-    def __init__(self, path, format_string, cache_key="_archive_key"):
+    def __init__(self, path, format_string, pragma=None,
+                 cache_key="_archive_key"):
         try:
             con = sqlite3.connect(path, timeout=60, check_same_thread=False)
         except sqlite3.OperationalError:
@@ -839,20 +888,23 @@ class DownloadArchive():
             con = sqlite3.connect(path, timeout=60, check_same_thread=False)
         con.isolation_level = None
 
-        self.close = con.close
-        self.cursor = con.cursor()
-
         from . import formatter
         self.keygen = formatter.parse(format_string).format_map
+        self.close = con.close
+        self.cursor = cursor = con.cursor()
         self._cache_key = cache_key
 
+        if pragma:
+            for stmt in pragma:
+                cursor.execute("PRAGMA " + stmt)
+
         try:
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS archive "
-                                "(entry TEXT PRIMARY KEY) WITHOUT ROWID")
+            cursor.execute("CREATE TABLE IF NOT EXISTS archive "
+                           "(entry TEXT PRIMARY KEY) WITHOUT ROWID")
         except sqlite3.OperationalError:
             # fallback for missing WITHOUT ROWID support (#553)
-            self.cursor.execute("CREATE TABLE IF NOT EXISTS archive "
-                                "(entry TEXT PRIMARY KEY)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS archive "
+                           "(entry TEXT PRIMARY KEY)")
 
     def check(self, kwdict):
         """Return True if the item described by 'kwdict' exists in archive"""

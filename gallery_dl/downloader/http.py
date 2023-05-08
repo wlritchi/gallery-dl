@@ -44,6 +44,12 @@ class HttpDownloader(DownloaderBase):
         self.mtime = self.config("mtime", True)
         self.rate = self.config("rate")
 
+        if not self.config("consume-content", False):
+            # this resets the underlying TCP connection, and therefore
+            # if the program makes another request to the same domain,
+            # a new connection (either TLS or plain TCP) must be made
+            self.release_conn = lambda resp: resp.close()
+
         if self.retries < 0:
             self.retries = float("inf")
         if self.minsize:
@@ -100,20 +106,13 @@ class HttpDownloader(DownloaderBase):
         adjust_extension = kwdict.get(
             "_http_adjust_extension", self.adjust_extension)
 
-        codes = kwdict.get("_http_retry_codes")
-        if codes:
-            retry_codes = list(self.retry_codes)
-            retry_codes += codes
-        else:
-            retry_codes = self.retry_codes
-
         if self.part and not metadata:
             pathfmt.part_enable(self.partdir)
 
         while True:
             if tries:
                 if response:
-                    response.close()
+                    self.release_conn(response)
                     response = None
                 self.log.warning("%s (%s/%s)", msg, tries, self.retries+1)
                 if tries > self.retries:
@@ -167,20 +166,29 @@ class HttpDownloader(DownloaderBase):
                 break
             else:
                 msg = "'{} {}' for '{}'".format(code, response.reason, url)
-                if code in retry_codes or 500 <= code < 600:
+                if code in self.retry_codes or 500 <= code < 600:
                     continue
+                retry = kwdict.get("_http_retry")
+                if retry and retry(response):
+                    continue
+                self.release_conn(response)
                 self.log.warning(msg)
                 return False
 
             # check for invalid responses
             validate = kwdict.get("_http_validate")
             if validate and self.validate:
-                result = validate(response)
+                try:
+                    result = validate(response)
+                except Exception:
+                    self.release_conn(response)
+                    raise
                 if isinstance(result, str):
                     url = result
                     tries -= 1
                     continue
                 if not result:
+                    self.release_conn(response)
                     self.log.warning("Invalid response")
                     return False
 
@@ -188,11 +196,13 @@ class HttpDownloader(DownloaderBase):
             size = text.parse_int(size, None)
             if size is not None:
                 if self.minsize and size < self.minsize:
+                    self.release_conn(response)
                     self.log.warning(
                         "File size smaller than allowed minimum (%s < %s)",
                         size, self.minsize)
                     return False
                 if self.maxsize and size > self.maxsize:
+                    self.release_conn(response)
                     self.log.warning(
                         "File size larger than allowed maximum (%s > %s)",
                         size, self.maxsize)
@@ -284,6 +294,18 @@ class HttpDownloader(DownloaderBase):
 
         return True
 
+    def release_conn(self, response):
+        """Release connection back to pool by consuming response body"""
+        try:
+            for _ in response.iter_content(self.chunk_size):
+                pass
+        except (RequestException, SSLError, OpenSSLError) as exc:
+            print()
+            self.log.debug(
+                "Unable to consume response body (%s: %s); "
+                "closing the connection anyway", exc.__class__.__name__, exc)
+            response.close()
+
     @staticmethod
     def receive(fp, content, bytes_total, bytes_start):
         write = fp.write
@@ -357,6 +379,8 @@ MIME_TYPES = {
     "image/x-ms-bmp": "bmp",
     "image/webp"    : "webp",
     "image/avif"    : "avif",
+    "image/heic"    : "heic",
+    "image/heif"    : "heif",
     "image/svg+xml" : "svg",
     "image/ico"     : "ico",
     "image/icon"    : "ico",
@@ -403,6 +427,8 @@ SIGNATURE_CHECKS = {
     "webp": lambda s: (s[0:4] == b"RIFF" and
                        s[8:12] == b"WEBP"),
     "avif": lambda s: s[4:11] == b"ftypavi" and s[11] in b"fs",
+    "heic": lambda s: (s[4:10] == b"ftyphe" and s[10:12] in (
+                       b"ic", b"im", b"is", b"ix", b"vc", b"vm", b"vs")),
     "svg" : lambda s: s[0:5] == b"<?xml",
     "ico" : lambda s: s[0:4] == b"\x00\x00\x01\x00",
     "cur" : lambda s: s[0:4] == b"\x00\x00\x02\x00",

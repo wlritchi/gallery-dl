@@ -9,13 +9,12 @@
 """Utility classes to setup OAuth and link accounts to gallery-dl"""
 
 from .common import Extractor, Message
-from . import deviantart, flickr, mastodon, pixiv, reddit, smugmug, tumblr
 from .. import text, oauth, util, config, exception
 from ..output import stdout_write
 from ..cache import cache
 import urllib.parse
+import binascii
 import hashlib
-import base64
 
 REDIRECT_URI_LOCALHOST = "http://localhost:6414/"
 REDIRECT_URI_HTTPS = "https://mikf.github.io/gallery-dl/oauth-redirect.html"
@@ -72,11 +71,15 @@ class OAuthBase(Extractor):
 
         browser = self.config("browser", True)
         if browser:
-            import webbrowser
-            browser = webbrowser.get()
+            try:
+                import webbrowser
+                browser = webbrowser.get()
+            except Exception:
+                browser = None
 
         if browser and browser.open(url):
-            self.log.info("Opening URL in %s:", browser.name.capitalize())
+            name = getattr(browser, "name", "Browser")
+            self.log.info("Opening URL in %s:", name.capitalize())
         else:
             self.log.info("Please open this URL in your browser:")
 
@@ -131,7 +134,7 @@ class OAuthBase(Extractor):
 
     def _oauth2_authorization_code_grant(
             self, client_id, client_secret, default_id, default_secret,
-            auth_url, token_url, *, scope="read", duration="permanent",
+            auth_url, token_url, scope="read", duration="permanent",
             key="refresh_token", auth=True, cache=None, instance=None):
         """Perform an OAuth2 authorization code grant"""
 
@@ -242,6 +245,7 @@ class OAuthFlickr(OAuthBase):
 
     def items(self):
         yield Message.Version, 1
+        from . import flickr
 
         self._oauth1_authorization_flow(
             flickr.FlickrAPI.API_KEY,
@@ -258,6 +262,7 @@ class OAuthSmugmug(OAuthBase):
 
     def items(self):
         yield Message.Version, 1
+        from . import smugmug
 
         self._oauth1_authorization_flow(
             smugmug.SmugmugAPI.API_KEY,
@@ -274,6 +279,7 @@ class OAuthTumblr(OAuthBase):
 
     def items(self):
         yield Message.Version, 1
+        from . import tumblr
 
         self._oauth1_authorization_flow(
             tumblr.TumblrAPI.API_KEY,
@@ -294,6 +300,7 @@ class OAuthDeviantart(OAuthBase):
 
     def items(self):
         yield Message.Version, 1
+        from . import deviantart
 
         self._oauth2_authorization_code_grant(
             self.oauth_config("client-id"),
@@ -313,6 +320,7 @@ class OAuthReddit(OAuthBase):
 
     def items(self):
         yield Message.Version, 1
+        from . import reddit
 
         self.session.headers["User-Agent"] = reddit.RedditAPI.USER_AGENT
         self._oauth2_authorization_code_grant(
@@ -337,6 +345,7 @@ class OAuthMastodon(OAuthBase):
 
     def items(self):
         yield Message.Version, 1
+        from . import mastodon
 
         for application in mastodon.INSTANCES.values():
             if self.instance == application["root"].partition("://")[2]:
@@ -389,11 +398,12 @@ class OAuthPixiv(OAuthBase):
 
     def items(self):
         yield Message.Version, 1
+        from . import pixiv
 
         code_verifier = util.generate_token(32)
-        digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
-        code_challenge = base64.urlsafe_b64encode(
-            digest).rstrip(b"=").decode("ascii")
+        digest = hashlib.sha256(code_verifier.encode()).digest()
+        code_challenge = binascii.b2a_base64(
+            digest)[:-2].decode().replace("+", "-").replace("/", "_")
 
         url = "https://app-api.pixiv.net/web/v1/login"
         params = {

@@ -29,6 +29,9 @@ Optional
 - yt-dlp_ or youtube-dl_: Video downloads
 - PySocks_: SOCKS proxy support
 - brotli_ or brotlicffi_: Brotli compression support
+- PyYAML_: YAML configuration file support
+- toml_: TOML configuration file support for Python<3.11
+- SecretStorage_: GNOME keyring passwords for ``--cookies-from-browser``
 
 
 Installation
@@ -69,9 +72,9 @@ Standalone Executable
 Prebuilt executable files with a Python interpreter and
 required Python packages included are available for
 
-- `Windows <https://github.com/mikf/gallery-dl/releases/download/v1.24.5/gallery-dl.exe>`__
+- `Windows <https://github.com/mikf/gallery-dl/releases/download/v1.25.4/gallery-dl.exe>`__
   (Requires `Microsoft Visual C++ Redistributable Package (x86) <https://aka.ms/vs/17/release/vc_redist.x86.exe>`__)
-- `Linux   <https://github.com/mikf/gallery-dl/releases/download/v1.24.5/gallery-dl.bin>`__
+- `Linux   <https://github.com/mikf/gallery-dl/releases/download/v1.25.4/gallery-dl.bin>`__
 
 
 Nightly Builds
@@ -119,6 +122,15 @@ For macOS or Linux users using Homebrew:
 .. code:: bash
 
     brew install gallery-dl
+
+MacPorts
+--------
+
+For macOS users with MacPorts:
+
+.. code:: bash
+
+    sudo port install gallery-dl
 
 
 Usage
@@ -285,7 +297,8 @@ This can be done via the
 option in your configuration file by specifying
 
 - | the path to a Mozilla/Netscape format cookies.txt file exported by a browser addon
-  | (e.g. `Export Cookies <https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/>`__ for Firefox)
+  | (e.g. `Get cookies.txt LOCALLY <https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc>`__ for Chrome,
+    `Export Cookies <https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/>`__ for Firefox)
 
 - | a list of name-value pairs gathered from your browser's web developer tools
   | (in `Chrome <https://developers.google.com/web/tools/chrome-devtools/storage/cookies>`__,
@@ -372,6 +385,9 @@ To authenticate with a ``mastodon`` instance, run *gallery-dl* with
 .. _PySocks:    https://pypi.org/project/PySocks/
 .. _brotli:     https://github.com/google/brotli
 .. _brotlicffi: https://github.com/python-hyper/brotlicffi
+.. _PyYAML:     https://pyyaml.org/
+.. _toml:       https://pypi.org/project/toml/
+.. _SecretStorage: https://pypi.org/project/SecretStorage/
 .. _Snapd:      https://docs.snapcraft.io/installing-snapd
 .. _OAuth:      https://en.wikipedia.org/wiki/OAuth
 .. _Chocolatey: https://chocolatey.org/install

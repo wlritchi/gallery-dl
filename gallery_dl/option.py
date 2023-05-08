@@ -10,9 +10,8 @@
 
 import argparse
 import logging
-import json
 import sys
-from . import job, version
+from . import job, util, version
 
 
 class ConfigAction(argparse.Action):
@@ -62,24 +61,21 @@ class OptionAction(argparse.Action):
 
 class Formatter(argparse.HelpFormatter):
     """Custom HelpFormatter class to customize help output"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(max_help_position=30, *args, **kwargs)
+    def __init__(self, prog):
+        argparse.HelpFormatter.__init__(self, prog, max_help_position=30)
 
-    def _format_action_invocation(self, action):
-        opts = action.option_strings[:]
-        if opts:
-            if action.nargs != 0:
-                args_string = self._format_args(action, "ARG")
-                opts[-1] += " " + args_string
-            return ', '.join(opts)
-        else:
-            return self._metavar_formatter(action, action.dest)(1)[0]
+    def _format_action_invocation(self, action, join=", ".join):
+        opts = action.option_strings
+        if action.metavar:
+            opts = opts.copy()
+            opts[-1] += " " + action.metavar
+        return join(opts)
 
 
 def _parse_option(opt):
     key, _, value = opt.partition("=")
     try:
-        value = json.loads(value)
+        value = util.json_loads(value)
     except ValueError:
         pass
     return key, value
@@ -151,20 +147,6 @@ def build_parser():
         dest="clear_cache", metavar="MODULE",
         help="Delete cached login sessions, cookies, etc. for MODULE "
              "(ALL to delete everything)",
-    )
-    general.add_argument(
-        "--cookies",
-        dest="cookies", metavar="FILE", action=ConfigAction,
-        help="File to load additional cookies from",
-    )
-    general.add_argument(
-        "--cookies-from-browser",
-        dest="cookies_from_browser",
-        metavar="BROWSER[+KEYRING][:PROFILE][::CONTAINER]",
-        help=("Name of the browser to load cookies from, "
-              "with optional keyring name prefixed with '+', "
-              "profile prefixed with ':', and "
-              "container prefixed with '::' ('none' for no container)"),
     )
 
     output = parser.add_argument_group("Output Options")
@@ -325,24 +307,40 @@ def build_parser():
 
     configuration = parser.add_argument_group("Configuration Options")
     configuration.add_argument(
+        "-o", "--option",
+        dest="options", metavar="KEY=VALUE", action=ParseAction, default=[],
+        help=("Additional options. "
+              "Example: -o browser=firefox")   ,
+    )
+    configuration.add_argument(
         "-c", "--config",
-        dest="cfgfiles", metavar="FILE", action="append",
+        dest="configs_json", metavar="FILE", action="append",
         help="Additional configuration files",
     )
     configuration.add_argument(
         "--config-yaml",
-        dest="yamlfiles", metavar="FILE", action="append",
-        help=argparse.SUPPRESS,
+        dest="configs_yaml", metavar="FILE", action="append",
+        help="Additional configuration files in YAML format",
     )
     configuration.add_argument(
-        "-o", "--option",
-        dest="options", metavar="OPT", action=ParseAction, default=[],
-        help="Additional '<key>=<value>' option values",
+        "--config-toml",
+        dest="configs_toml", metavar="FILE", action="append",
+        help="Additional configuration files in TOML format",
+    )
+    configuration.add_argument(
+        "--config-create",
+        dest="config_init", action="store_true",
+        help="Create a basic configuration file",
+    )
+    configuration.add_argument(
+        "--config-ignore",
+        dest="config_load", action="store_false",
+        help="Do not read default configuration files",
     )
     configuration.add_argument(
         "--ignore-config",
-        dest="load_config", action="store_false",
-        help="Do not read default configuration files",
+        dest="config_load", action="store_false",
+        help=argparse.SUPPRESS,
     )
 
     authentication = parser.add_argument_group("Authentication Options")
@@ -360,6 +358,28 @@ def build_parser():
         "--netrc",
         dest="netrc", nargs=0, action=ConfigConstAction, const=True,
         help="Enable .netrc authentication data",
+    )
+
+    cookies = parser.add_argument_group("Cookie Options")
+    cookies.add_argument(
+        "-C", "--cookies",
+        dest="cookies", metavar="FILE", action=ConfigAction,
+        help="File to load additional cookies from",
+    )
+    cookies.add_argument(
+        "--cookies-export",
+        dest="cookies-update", metavar="FILE", action=ConfigAction,
+        help="Export session cookies to FILE",
+    )
+    cookies.add_argument(
+        "--cookies-from-browser",
+        dest="cookies_from_browser",
+        metavar="BROWSER[/DOMAIN][+KEYRING][:PROFILE][::CONTAINER]",
+        help=("Name of the browser to load cookies from, with optional "
+              "domain prefixed with '/', "
+              "keyring name prefixed with '+', "
+              "profile prefixed with ':', and "
+              "container prefixed with '::' ('none' for no container)"),
     )
 
     selection = parser.add_argument_group("Selection Options")

@@ -35,6 +35,7 @@ CATEGORY_MAP = {
     "drawfriends"    : "Draw Friends",
     "dynastyscans"   : "Dynasty Reader",
     "e621"           : "e621",
+    "e926"           : "e926",
     "erome"          : "EroMe",
     "e-hentai"       : "E-Hentai",
     "exhentai"       : "ExHentai",
@@ -62,6 +63,7 @@ CATEGORY_MAP = {
     "imgth"          : "imgth",
     "imgur"          : "imgur",
     "joyreactor"     : "JoyReactor",
+    "itchio"         : "itch.io",
     "kabeuchi"       : "かべうち",
     "kemonoparty"    : "Kemono",
     "lineblog"       : "LINE BLOG",
@@ -88,6 +90,7 @@ CATEGORY_MAP = {
     "paheal"         : "rule #34",
     "photovogue"     : "PhotoVogue",
     "pornimagesxxx"  : "Porn Image",
+    "pornpics"       : "PornPics.com",
     "pornreactor"    : "PornReactor",
     "powermanga"     : "PowerManga",
     "readcomiconline": "Read Comic Online",
@@ -110,10 +113,10 @@ CATEGORY_MAP = {
     "subscribestar"  : "SubscribeStar",
     "tbib"           : "The Big ImageBoard",
     "tcbscans"       : "TCB Scans",
+    "tco"            : "Twitter t.co",
     "thatpervert"    : "ThatPervert",
     "thebarchive"    : "The /b/ Archive",
     "thecollection"  : "The /co/llection",
-    "tokyochronos"   : "TokyoChronos",
     "tumblrgallery"  : "TumblrGallery",
     "vanillarock"    : "もえぴりあ",
     "vidyart"        : "/v/idyart",
@@ -130,6 +133,7 @@ CATEGORY_MAP = {
 }
 
 SUBCATEGORY_MAP = {
+    ""       : "",
     "art"    : "Art",
     "audio"  : "Audio",
     "doujin" : "Doujin",
@@ -138,6 +142,7 @@ SUBCATEGORY_MAP = {
     "issue"  : "Comic Issues",
     "manga"  : "Manga",
     "media"  : "Media Files",
+    "note"   : "Images from Notes",
     "popular": "Popular Images",
     "recent" : "Recent Images",
     "search" : "Search Results",
@@ -153,20 +158,15 @@ SUBCATEGORY_MAP = {
     "artstation": {
         "artwork": "Artwork Listings",
     },
-    "atfbooru": {
-        "favorite": "",
-    },
     "coomerparty": {
         "discord"       : "",
         "discord-server": "",
-    },
-    "danbooru": {
-        "favorite": "",
     },
     "desktopography": {
         "site": "",
     },
     "deviantart": {
+        "gallery-search": "Gallery Searches",
         "stash" : "Sta.sh",
         "status": "Status Updates",
         "watch-posts": "",
@@ -182,6 +182,9 @@ SUBCATEGORY_MAP = {
     },
     "hentaifoundry": {
         "story": "",
+    },
+    "imgur": {
+        "favorite-folder": "Favorites Folders",
     },
     "instagram": {
         "posts": "",
@@ -217,6 +220,9 @@ SUBCATEGORY_MAP = {
     "reddit": {
         "home": "Home Feed",
     },
+    "redgifs": {
+        "collections": "",
+    },
     "sankaku": {
         "books": "Book Searches",
     },
@@ -225,6 +231,9 @@ SUBCATEGORY_MAP = {
     },
     "smugmug": {
         "path": "Images from Users and Folders",
+    },
+    "tumblr": {
+        "day": "Days",
     },
     "twitter": {
         "media": "Media Timelines",
@@ -256,6 +265,7 @@ SUBCATEGORY_MAP = {
 }
 
 BASE_MAP = {
+    "E621"        : "e621 Instances",
     "foolfuuka"   : "FoolFuuka 4chan Archives",
     "foolslide"   : "FoOlSlide Instances",
     "gelbooru_v01": "Gelbooru Beta 0.1.11",
@@ -263,6 +273,8 @@ BASE_MAP = {
     "lolisafe"    : "lolisafe and chibisafe",
     "lynxchan"    : "LynxChan Imageboards",
     "moebooru"    : "Moebooru and MyImouto",
+    "szurubooru"  : "szurubooru Instances",
+    "urlshortener": "URL Shorteners",
     "vichan"      : "vichan Imageboards",
 }
 
@@ -285,6 +297,7 @@ AUTH_MAP = {
     "derpibooru"     : _APIKEY_DB,
     "deviantart"     : _OAUTH,
     "e621"           : "Supported",
+    "e926"           : "Supported",
     "e-hentai"       : "Supported",
     "exhentai"       : "Supported",
     "fanbox"         : _COOKIES,

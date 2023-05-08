@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2016-2022 Mike Fährmann
+# Copyright 2016-2023 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -10,7 +10,6 @@
 
 from .common import BaseExtractor, Message
 from .. import text, util
-import json
 
 
 class FoolslideExtractor(BaseExtractor):
@@ -43,11 +42,6 @@ BASE_PATTERN = FoolslideExtractor.update({
         "root": "https://read.powermanga.org",
         "pattern": r"read(?:er)?\.powermanga\.org",
     },
-    "sensescans": {
-        "root": "https://sensescans.com/reader",
-        "pattern": r"(?:(?:www\.)?sensescans\.com/reader"
-                   r"|reader\.sensescans\.com)",
-    },
 })
 
 
@@ -65,11 +59,6 @@ class FoolslideChapterExtractor(FoolslideExtractor):
             "url": "854c5817f8f767e1bccd05fa9d58ffb5a4b09384",
             "keyword": "a60c42f2634b7387899299d411ff494ed0ad6dbe",
         }),
-        ("https://sensescans.com/reader/read/ao_no_orchestra/en/0/26/", {
-            "url": "bbd428dc578f5055e9f86ad635b510386cd317cd",
-            "keyword": "083ef6f8831c84127fe4096fa340a249be9d1424",
-        }),
-        ("https://reader.sensescans.com/read/ao_no_orchestra/en/0/26/"),
     )
 
     def items(self):
@@ -106,7 +95,7 @@ class FoolslideChapterExtractor(FoolslideExtractor):
         })
 
     def images(self, page):
-        return json.loads(text.extr(page, "var pages = ", ";"))
+        return util.json_loads(text.extr(page, "var pages = ", ";"))
 
 
 class FoolslideMangaExtractor(FoolslideExtractor):
@@ -129,9 +118,6 @@ class FoolslideMangaExtractor(FoolslideExtractor):
                 "title": str,
                 "volume": int,
             },
-        }),
-        ("https://sensescans.com/reader/series/yotsubato/", {
-            "count": ">= 3",
         }),
     )
 

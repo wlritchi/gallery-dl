@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2015-2021 Mike Fährmann
+# Copyright 2015-2023 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -9,7 +9,6 @@
 """Global configuration module"""
 
 import sys
-import json
 import os.path
 import logging
 from . import util
@@ -39,7 +38,7 @@ else:
     ]
 
 
-if getattr(sys, "frozen", False):
+if util.EXECUTABLE:
     # look for config file in PyInstaller executable directory (#682)
     _default_configs.append(os.path.join(
         os.path.dirname(sys.executable),
@@ -50,36 +49,68 @@ if getattr(sys, "frozen", False):
 # --------------------------------------------------------------------
 # public interface
 
-def load(files=None, strict=False, fmt="json"):
-    """Load JSON configuration files"""
-    if fmt == "yaml":
-        try:
-            import yaml
-            parsefunc = yaml.safe_load
-        except ImportError:
-            log.error("Could not import 'yaml' module")
-            return
-    else:
-        parsefunc = json.load
 
+def initialize():
+    paths = list(map(util.expand_path, _default_configs))
+
+    for path in paths:
+        if os.access(path, os.R_OK | os.W_OK):
+            log.error("There is already a configuration file at '%s'", path)
+            return 1
+
+    for path in paths:
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "x", encoding="utf-8") as fp:
+                fp.write("""\
+{
+    "extractor": {
+
+    },
+    "downloader": {
+
+    },
+    "output": {
+
+    },
+    "postprocessor": {
+
+    }
+}
+""")
+            break
+        except OSError as exc:
+            log.debug("%s: %s", exc.__class__.__name__, exc)
+    else:
+        log.error("Unable to create a new configuration file "
+                  "at any of the default paths")
+        return 1
+
+    log.info("Created a basic configuration file at '%s'", path)
+    return 0
+
+
+def load(files=None, strict=False, load=util.json_loads):
+    """Load JSON configuration files"""
     for pathfmt in files or _default_configs:
         path = util.expand_path(pathfmt)
         try:
             with open(path, encoding="utf-8") as file:
-                confdict = parsefunc(file)
+                conf = load(file.read())
         except OSError as exc:
             if strict:
                 log.error(exc)
                 sys.exit(1)
         except Exception as exc:
-            log.warning("Could not parse '%s': %s", path, exc)
+            log.error("%s when loading '%s': %s",
+                      exc.__class__.__name__, path, exc)
             if strict:
                 sys.exit(2)
         else:
             if not _config:
-                _config.update(confdict)
+                _config.update(conf)
             else:
-                util.combine_dict(_config, confdict)
+                util.combine_dict(_config, conf)
             _files.append(pathfmt)
 
 
@@ -88,7 +119,7 @@ def clear():
     _config.clear()
 
 
-def get(path, key, default=None, *, conf=_config):
+def get(path, key, default=None, conf=_config):
     """Get the value of property 'key' or a default value"""
     try:
         for p in path:
@@ -98,7 +129,7 @@ def get(path, key, default=None, *, conf=_config):
         return default
 
 
-def interpolate(path, key, default=None, *, conf=_config):
+def interpolate(path, key, default=None, conf=_config):
     """Interpolate the value of 'key'"""
     if key in conf:
         return conf[key]
@@ -112,7 +143,7 @@ def interpolate(path, key, default=None, *, conf=_config):
     return default
 
 
-def interpolate_common(common, paths, key, default=None, *, conf=_config):
+def interpolate_common(common, paths, key, default=None, conf=_config):
     """Interpolate the value of 'key'
     using multiple 'paths' along a 'common' ancestor
     """
@@ -144,7 +175,7 @@ def interpolate_common(common, paths, key, default=None, *, conf=_config):
     return default
 
 
-def accumulate(path, key, *, conf=_config):
+def accumulate(path, key, conf=_config):
     """Accumulate the values of 'key' along 'path'"""
     result = []
     try:
@@ -163,7 +194,7 @@ def accumulate(path, key, *, conf=_config):
     return result
 
 
-def set(path, key, value, *, conf=_config):
+def set(path, key, value, conf=_config):
     """Set the value of property 'key' for this session"""
     for p in path:
         try:
@@ -173,7 +204,7 @@ def set(path, key, value, *, conf=_config):
     conf[key] = value
 
 
-def setdefault(path, key, value, *, conf=_config):
+def setdefault(path, key, value, conf=_config):
     """Set the value of property 'key' if it doesn't exist"""
     for p in path:
         try:
@@ -183,7 +214,7 @@ def setdefault(path, key, value, *, conf=_config):
     return conf.setdefault(key, value)
 
 
-def unset(path, key, *, conf=_config):
+def unset(path, key, conf=_config):
     """Unset the value of property 'key'"""
     try:
         for p in path:

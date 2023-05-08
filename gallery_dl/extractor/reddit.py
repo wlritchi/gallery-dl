@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2017-2022 Mike Fährmann
+# Copyright 2017-2023 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -29,7 +29,14 @@ class RedditExtractor(Extractor):
 
         parentdir = self.config("parent-directory")
         max_depth = self.config("recursion", 0)
+
         videos = self.config("videos", True)
+        if videos:
+            if videos == "ytdl":
+                self._extract_video = self._extract_video_ytdl
+            elif videos == "dash":
+                self._extract_video = self._extract_video_dash
+            videos = True
 
         submissions = self.submissions()
         visited = set()
@@ -62,19 +69,8 @@ class RedditExtractor(Extractor):
                     elif submission["is_video"]:
                         if videos:
                             text.nameext_from_url(url, submission)
-                            if videos == "ytdl":
-                                url = "https://www.reddit.com" + \
-                                    submission["permalink"]
-                            else:
-                                submission["_ytdl_extra"] = {
-                                    "title": submission["title"],
-                                }
-                                try:
-                                    url = (submission["secure_media"]
-                                           ["reddit_video"]["dash_url"])
-                                except (KeyError, TypeError):
-                                    pass
-                            yield Message.Url, "ytdl:" + url, submission
+                            url = "ytdl:" + self._extract_video(submission)
+                            yield Message.Url, url, submission
 
                     elif not submission["is_self"]:
                         urls.append((url, submission))
@@ -144,6 +140,21 @@ class RedditExtractor(Extractor):
                     "gallery %s: unable to fetch download URL for item %s",
                     submission["id"], item["media_id"])
                 self.log.debug(src)
+
+    def _extract_video_ytdl(self, submission):
+        return "https://www.reddit.com" + submission["permalink"]
+
+    def _extract_video_dash(self, submission):
+        submission["_ytdl_extra"] = {"title": submission["title"]}
+        try:
+            return (submission["secure_media"]["reddit_video"]["dash_url"] +
+                    "#__youtubedl_smuggle=%7B%22to_generic%22%3A+1%7D")
+        except Exception:
+            return submission["url"]
+
+    def _extract_video(self, submission):
+        submission["_ytdl_extra"] = {"title": submission["title"]}
+        return submission["url"]
 
 
 class RedditSubredditExtractor(RedditExtractor):
@@ -233,6 +244,25 @@ class RedditSubmissionExtractor(RedditExtractor):
             "content": "1e7dde4ee7d5f4c4b45749abfd15b2dbfa27df3f",
             "count": 3,
         }),
+        # video
+        ("https://www.reddit.com/r/aww/comments/90bu6w/", {
+            "pattern": r"ytdl:https://v.redd.it/gyh95hiqc0b11",
+            "count": 1,
+        }),
+        # video (ytdl)
+        ("https://www.reddit.com/r/aww/comments/90bu6w/", {
+            "options": (("videos", "ytdl"),),
+            "pattern": r"ytdl:https://www.reddit.com/r/aww/comments/90bu6w"
+                       r"/heat_index_was_110_degrees_so_we_offered_him_a/",
+            "count": 1,
+        }),
+        # video (dash)
+        ("https://www.reddit.com/r/aww/comments/90bu6w/", {
+            "options": (("videos", "dash"),),
+            "pattern": r"ytdl:https://v.redd.it/gyh95hiqc0b11"
+                       r"/DASHPlaylist.mpd\?a=",
+            "count": 1,
+        }),
         # deleted gallery (#953)
         ("https://www.reddit.com/gallery/icfgzv", {
             "count": 0,
@@ -273,8 +303,8 @@ class RedditImageExtractor(Extractor):
     category = "reddit"
     subcategory = "image"
     archive_fmt = "{filename}"
-    pattern = (r"(?:https?://)?i\.redd(?:\.it|ituploads\.com)"
-               r"/[^/?#]+(?:\?[^#]*)?")
+    pattern = (r"(?:https?://)?((?:i|preview)\.redd\.it|i\.reddituploads\.com)"
+               r"/([^/?#]+)(\?[^#]*)?")
     test = (
         ("https://i.redd.it/upjtjcx2npzz.jpg", {
             "url": "0de614900feef103e580b632190458c0b62b641a",
@@ -285,12 +315,29 @@ class RedditImageExtractor(Extractor):
             "url": "f24f25efcedaddeec802e46c60d77ef975dc52a5",
             "content": "541dbcc3ad77aa01ee21ca49843c5e382371fae7",
         }),
+        # preview.redd.it -> i.redd.it
+        (("https://preview.redd.it/00af44lpn0u51.jpg?width=960&crop=smart"
+         "&auto=webp&v=enabled&s=dbca8ab84033f4a433772d9c15dbe0429c74e8ac"), {
+            "pattern": r"^https://i\.redd\.it/00af44lpn0u51\.jpg$"
+        }),
     )
 
+    def __init__(self, match):
+        Extractor.__init__(self, match)
+        domain = match.group(1)
+        self.path = match.group(2)
+        if domain == "preview.redd.it":
+            self.domain = "i.redd.it"
+            self.query = ""
+        else:
+            self.domain = domain
+            self.query = match.group(3) or ""
+
     def items(self):
-        data = text.nameext_from_url(self.url)
+        url = "https://{}/{}{}".format(self.domain, self.path, self.query)
+        data = text.nameext_from_url(url)
         yield Message.Directory, data
-        yield Message.Url, self.url, data
+        yield Message.Url, url, data
 
 
 class RedditAPI():
@@ -429,6 +476,9 @@ class RedditAPI():
     def _pagination(self, endpoint, params):
         id_min = self._parse_id("id-min", 0)
         id_max = self._parse_id("id-max", float("inf"))
+        if id_max == 2147483647:
+            self.log.debug("Ignoring 'id-max' setting \"zik0zj\"")
+            id_max = float("inf")
         date_min, date_max = self.extractor._get_date_min_max(0, 253402210800)
 
         while True:
