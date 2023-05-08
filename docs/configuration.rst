@@ -446,24 +446,29 @@ Description
       * The optional second entry is a profile name or an absolute path to a profile directory
       * The optional third entry is the keyring to retrieve passwords for decrypting cookies from
       * The optional fourth entry is a (Firefox) container name (``"none"`` for only cookies with no container)
+      * The optional fifth entry is the domain to extract cookies for. Prefix it with a dot ``.`` to include cookies for subdomains. Has no effect when also specifying a container.
 
       .. code:: json
 
         ["firefox"]
         ["firefox", null, null, "Personal"]
-        ["chromium", "Private", "kwallet"]
+        ["chromium", "Private", "kwallet", null, ".twitter.com"]
 
 
 extractor.*.cookies-update
 --------------------------
 Type
-    ``bool``
+    * ``bool``
+    * |Path|_
 Default
     ``true``
 Description
-    If `extractor.*.cookies`_ specifies the |Path|_ of a cookies.txt
-    file and it can be opened and parsed without errors,
-    update its contents with cookies received during data extraction.
+    Export session cookies in cookies.txt format.
+
+    * If this is a |Path|_, write cookies to the given file path.
+
+    * If this is ``true`` and `extractor.*.cookies`_ specifies the |Path|_
+      of a valid cookies.txt file, update its contents.
 
 
 extractor.*.proxy
@@ -2074,17 +2079,6 @@ Description
     Fetch media from replies to other notes.
 
 
-extractor.nana.favkey
----------------------
-Type
-    ``string``
-Default
-    ``null``
-Description
-    Your `Nana Favorite Key <https://nana.my.id/tutorial>`__,
-    used to access your favorite archives.
-
-
 extractor.newgrounds.flash
 --------------------------
 Type
@@ -3644,6 +3638,25 @@ Description
     For example, this will change the filename extension (``{extension}``)
     of a file called ``example.png`` from ``png`` to ``jpg`` when said file
     contains JPEG/JFIF data.
+
+
+downloader.http.consume-content
+-------------------------------
+Type
+    ``bool``
+Default
+    ``false``
+Description
+    Controls the behavior when an HTTP response is considered
+    unsuccessful
+
+    If the value is ``true``, consume the response body. This
+    avoids closing the connection and therefore improves connection
+    reuse.
+
+    If the value is ``false``, immediately close the connection
+    without reading the response. This can be useful if the server
+    is known to send large bodies for error responses.
 
 
 downloader.http.chunk-size
