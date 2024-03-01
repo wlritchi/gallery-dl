@@ -42,6 +42,7 @@ class InstagramExtractor(Extractor):
         self._logged_in = True
         self._cursor = None
         self._user = None
+        self._fb_dtsg = None
 
         self.cookies.set(
             "csrftoken", self.csrf_token, domain=self.cookies_domain)
@@ -221,7 +222,7 @@ class InstagramExtractor(Extractor):
             if video_versions:
                 video = max(
                     video_versions,
-                    key=lambda x: (x["width"], x["height"], x["type"]),
+                    key=lambda x: (x.get("width", 0), x.get("height", 0), x["type"]),
                 )
                 media = video
             else:
@@ -238,12 +239,12 @@ class InstagramExtractor(Extractor):
                                 shortcode_from_id(item["pk"])),
                 "display_url": image["url"],
                 "video_url"  : video["url"] if video else None,
-                "width"      : media["width"],
-                "height"     : media["height"],
+                "width"      : media.get("width"),
+                "height"     : media.get("height"),
             }
 
             if "expiring_at" in item:
-                media["expires"] = text.parse_timestamp(post["expiring_at"])
+                media["expires"] = text.parse_timestamp(item["expiring_at"])
 
             self._extract_tagged_users(item, media)
             files.append(media)
@@ -398,6 +399,15 @@ class InstagramExtractor(Extractor):
                 user[key] = user.pop(old)["count"]
             except Exception:
                 user[key] = 0
+
+    def _extract_dtsg(self):
+        url = "https://www.instagram.com/"
+        page = self.request(url).text
+        match = re.search(r"([\"'])DTSGInitialData\1\s*:\s*{\s*['\"]token['\"]\s*:\s*['\"](?P<dtsg>[^'\"]+)", page)
+        if match:
+            self._fb_dtsg = match.group("dtsg")
+        else:
+            self.log.warning("Unable to extract fb_dtsg")
 
 
 class InstagramUserExtractor(InstagramExtractor):
@@ -875,9 +885,8 @@ class InstagramGraphqlAPI():
 
     def __init__(self, extractor):
         self.extractor = extractor
-        self.user_collection = self.user_saved = self.reels_media = \
-            self.highlights_media = self.guide = self.guide_media = \
-            self._unsupported
+        self.user_collection = self.user_saved = self.highlights_media = \
+            self.guide = self.guide_media = self._unsupported
         self._json_dumps = json.JSONEncoder(separators=(",", ":")).encode
 
         api = InstagramRestAPI(extractor)
@@ -916,6 +925,35 @@ class InstagramGraphqlAPI():
         media = self._call(query_hash, variables).get("shortcode_media")
         return (media,) if media else ()
 
+    def reels_media(self, reel_ids):
+        # TODO test this with specific reel IDs (e.g. highlights)
+        if not isinstance(reel_ids, list):
+            # reel by userid, check if story exists first
+            # skipping this check tends to trip the bot filter when we hit users without stories
+            query_id = "9957820854288654"
+            variables = {
+                "user_id": reel_ids,
+                "include_chaining": False,
+                "include_reel": True,
+                "include_suggested_users": False,
+                "include_logged_out_extras": False,
+                "include_highlight_reels": True,
+                "include_live_status": False,
+            }
+            has_public_story = self._call_by_id(query_id, variables)["user"][
+                "has_public_story"
+            ]
+            if not has_public_story:
+                return []
+
+            reel_ids = [reel_ids]
+
+        query_id = "7205858822839760"
+        variables = {
+            "reel_ids_arr": reel_ids,
+        }
+        return self._call_new_api(query_id, variables)["xdt_api__v1__feed__reels_media"]["reels_media"]
+
     def tags_media(self, tag):
         query_hash = "9b498c08113f1e09617a1703c22b2f32"
         variables = {"tag_name": text.unescape(tag), "first": 50}
@@ -936,6 +974,52 @@ class InstagramGraphqlAPI():
         query_hash = "be13233562af2d229b008d2976b998b5"
         variables = {"id": user_id, "first": 50}
         return self._pagination(query_hash, variables)
+
+    def _call_new_api(self, query_id, variables):
+        extr = self.extractor
+
+        if not extr._fb_dtsg:
+            extr._extract_dtsg()
+            if not extr._fb_dtsg:
+                raise exception.StopExtraction("Unable to extract fb_dtsg")
+
+        url = "https://www.instagram.com/api/graphql"
+        data = {
+            "fb_dtsg": extr._fb_dtsg,
+            "variables": self._json_dumps(variables),
+            "doc_id": query_id,
+        }
+        headers = {
+            "Accept": "*/*",
+            "X-CSRFToken": extr.csrf_token,
+            "X-IG-App-ID": "936619743392459",
+            "X-ASBD-ID": "129477",
+            "Referer": extr.root + "/",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "no-cors",
+            "Sec-Fetch-Site": "same-origin",
+        }
+        return extr.request(url, method="POST", data=data, headers=headers).json()["data"]
+
+    def _call_by_id(self, query_id, variables):
+        extr = self.extractor
+
+        url = "https://www.instagram.com/graphql/query/"
+        params = {
+            "query_id": query_id,
+            **variables,
+        }
+        headers = {
+            "Accept": "*/*",
+            "X-CSRFToken": extr.csrf_token,
+            "X-Instagram-AJAX": "1006267176",
+            "X-IG-App-ID": "936619743392459",
+            "X-ASBD-ID": "198387",
+            "X-IG-WWW-Claim": extr.www_claim,
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": extr.root + "/",
+        }
+        return extr.request(url, params=params, headers=headers).json()["data"]
 
     def _call(self, query_hash, variables):
         extr = self.extractor
